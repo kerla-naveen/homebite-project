@@ -27,4 +27,14 @@ const getVendorById = asyncHandler(async (req, res) => {
   return apiResponse.success(res, vendor);
 });
 
-module.exports = { onboard, getMyProfile, updateMyProfile, listVendors, getVendorById };
+const getDashboard = asyncHandler(async (req, res) => {
+  const summary = await vendorService.getDashboardSummary(req.user.id);
+  return apiResponse.success(res, summary);
+});
+
+const getEarnings = asyncHandler(async (req, res) => {
+  const summary = await vendorService.getEarningsSummary(req.user.id);
+  return apiResponse.success(res, summary);
+});
+
+module.exports = { onboard, getMyProfile, updateMyProfile, listVendors, getVendorById, getDashboard, getEarnings };

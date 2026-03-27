@@ -1,8 +1,14 @@
 const prisma = require('../../config/database');
 const { paginate, paginatedResponse } = require('../../utils/paginate');
-const { ORDER_STATUS, VENDOR_ALLOWED_STATUS_TRANSITIONS } = require('../../utils/constants');
+const {
+  ORDER_STATUS,
+  VENDOR_ALLOWED_STATUS_TRANSITIONS,
+  VENDOR_REJECTABLE_STATUSES,
+} = require('../../utils/constants');
 
 const DELIVERY_FEE = 40;
+
+// ─── Customer ─────────────────────────────────────────────────────────────────
 
 const placeOrder = async (userId, { addressId, notes }) => {
   const cart = await prisma.cart.findUnique({
@@ -69,10 +75,7 @@ const placeOrder = async (userId, { addressId, notes }) => {
           })),
         },
         payment: {
-          create: {
-            amount: total,
-            status: 'PENDING',
-          },
+          create: { amount: total, status: 'PENDING' },
         },
         delivery: {
           create: { status: 'NOT_INITIATED' },
@@ -92,7 +95,10 @@ const placeOrder = async (userId, { addressId, notes }) => {
 
 const getMyOrders = async (userId, query) => {
   const { skip, take, page, limit } = paginate(query);
-  const where = { customerId: userId };
+  const where = {
+    customerId: userId,
+    ...(query.status && { status: query.status }),
+  };
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
@@ -147,6 +153,7 @@ const getOrderById = async (userId, role, orderId) => {
   return order;
 };
 
+// Customer can cancel while order is pending payment or not yet being prepared
 const cancelOrder = async (userId, orderId) => {
   const order = await prisma.order.findFirst({ where: { id: orderId, customerId: userId } });
   if (!order) {
@@ -155,8 +162,14 @@ const cancelOrder = async (userId, orderId) => {
     throw err;
   }
 
-  if (order.status !== ORDER_STATUS.PENDING_PAYMENT && order.status !== ORDER_STATUS.CONFIRMED) {
-    const err = new Error('Order cannot be cancelled at this stage');
+  const cancellableStatuses = [
+    ORDER_STATUS.PENDING_PAYMENT,
+    ORDER_STATUS.CONFIRMED,
+    ORDER_STATUS.ACCEPTED,
+  ];
+
+  if (!cancellableStatuses.includes(order.status)) {
+    const err = new Error('Order cannot be cancelled once preparation has started');
     err.statusCode = 400;
     throw err;
   }
@@ -167,6 +180,8 @@ const cancelOrder = async (userId, orderId) => {
   });
 };
 
+// ─── Vendor ───────────────────────────────────────────────────────────────────
+
 const getVendorOrders = async (userId, query) => {
   const vendor = await prisma.vendor.findUnique({ where: { userId } });
   if (!vendor) {
@@ -176,8 +191,18 @@ const getVendorOrders = async (userId, query) => {
   }
 
   const { skip, take, page, limit } = paginate(query);
-  const where = { vendorId: vendor.id };
-  if (query.status) where.status = query.status;
+
+  // Support comma-separated ?status=CONFIRMED,ACCEPTED for multi-status filter
+  let statusFilter;
+  if (query.status) {
+    const statuses = query.status.split(',').map((s) => s.trim());
+    statusFilter = statuses.length === 1 ? statuses[0] : { in: statuses };
+  }
+
+  const where = {
+    vendorId: vendor.id,
+    ...(statusFilter && { status: statusFilter }),
+  };
 
   const [orders, total] = await Promise.all([
     prisma.order.findMany({
@@ -196,6 +221,67 @@ const getVendorOrders = async (userId, query) => {
   return paginatedResponse(orders, total, page, limit);
 };
 
+// Dedicated accept: CONFIRMED → ACCEPTED
+const acceptOrder = async (userId, orderId) => {
+  const vendor = await prisma.vendor.findUnique({ where: { userId } });
+  if (!vendor) {
+    const err = new Error('Vendor not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const order = await prisma.order.findFirst({ where: { id: orderId, vendorId: vendor.id } });
+  if (!order) {
+    const err = new Error('Order not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (order.status !== ORDER_STATUS.CONFIRMED) {
+    const err = new Error('Only confirmed (paid) orders can be accepted');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { status: ORDER_STATUS.ACCEPTED },
+    include: {
+      customer: { select: { id: true, name: true, phone: true } },
+      items: true,
+    },
+  });
+};
+
+// Dedicated reject: CONFIRMED or ACCEPTED → CANCELLED
+const rejectOrder = async (userId, orderId, reason) => {
+  const vendor = await prisma.vendor.findUnique({ where: { userId } });
+  if (!vendor) {
+    const err = new Error('Vendor not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const order = await prisma.order.findFirst({ where: { id: orderId, vendorId: vendor.id } });
+  if (!order) {
+    const err = new Error('Order not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (!VENDOR_REJECTABLE_STATUSES.includes(order.status)) {
+    const err = new Error(`Orders in status "${order.status}" cannot be rejected`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { status: ORDER_STATUS.CANCELLED, cancelReason: reason || 'Rejected by vendor' },
+  });
+};
+
+// Generic status advance: ACCEPTED → PREPARING → READY_FOR_PICKUP → OUT_FOR_DELIVERY → DELIVERED
 const updateOrderStatus = async (userId, orderId, newStatus) => {
   const vendor = await prisma.vendor.findUnique({ where: { userId } });
   if (!vendor) {
@@ -221,4 +307,13 @@ const updateOrderStatus = async (userId, orderId, newStatus) => {
   return prisma.order.update({ where: { id: orderId }, data: { status: newStatus } });
 };
 
-module.exports = { placeOrder, getMyOrders, getOrderById, cancelOrder, getVendorOrders, updateOrderStatus };
+module.exports = {
+  placeOrder,
+  getMyOrders,
+  getOrderById,
+  cancelOrder,
+  getVendorOrders,
+  acceptOrder,
+  rejectOrder,
+  updateOrderStatus,
+};
