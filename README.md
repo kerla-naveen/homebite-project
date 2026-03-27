@@ -18,6 +18,7 @@
 - [API Endpoints Overview](#api-endpoints-overview)
 - [Database Schema Overview](#database-schema-overview)
 - [Order Flow](#order-flow)
+- [Troubleshooting: Expo Go Not Connecting to Backend](#troubleshooting-expo-go-not-connecting-to-backend)
 - [Future Improvements](#future-improvements)
 - [Deployment Plan](#deployment-plan)
 - [Contributing](#contributing)
@@ -655,6 +656,135 @@ Customer submits review → POST /reviews
 ```
 
 > **Cancellations:** A customer can cancel before the order is ACCEPTED by the vendor. Payment refunds on cancellation are planned via Razorpay's refund API.
+
+---
+
+## Troubleshooting: Expo Go Not Connecting to Backend
+
+This is the most common issue when running HomeBite for the first time. Expo Go runs on your **physical mobile device**, which is a separate machine on the network — it cannot reach `localhost` on your laptop. You must use your laptop's local network IP address everywhere.
+
+### Why This Happens
+
+```
+Your Laptop               Your Phone (Expo Go)
+─────────────             ────────────────────
+localhost:5000  ✗  <───   EXPO_PUBLIC_API_URL=http://localhost:5000
+192.168.1.10:5000  ✓ <─── EXPO_PUBLIC_API_URL=http://192.168.1.10:5000
+```
+
+`localhost` inside Expo Go refers to the **phone itself**, not your laptop. The backend is unreachable unless you use the actual LAN IP.
+
+---
+
+### Step 1 — Find Your Laptop's Local IP
+
+**Windows:**
+```bash
+ipconfig
+# Look for: IPv4 Address . . . . . : 192.168.x.x
+```
+
+**macOS / Linux:**
+```bash
+ifconfig | grep "inet "
+# or
+ip addr show | grep "inet "
+# Look for something like: inet 192.168.x.x
+```
+
+Your IP will look like `192.168.x.x` or `10.x.x.x`. Use that in all the steps below.
+
+> **Important:** Your IP can change each time you reconnect to Wi-Fi. If the app suddenly stops connecting, re-check your IP and update the files below.
+
+---
+
+### Step 2 — Update the Mobile App `.env`
+
+Open `homebite-app/.env` and set:
+
+```env
+EXPO_PUBLIC_API_URL=http://192.168.x.x:5000/api/v1
+```
+
+Replace `192.168.x.x` with your actual IP. Do **not** use `localhost` or `127.0.0.1`.
+
+---
+
+### Step 3 — Update the Backend `ALLOWED_ORIGINS`
+
+Open `homebite-backend/.env` and add your IP and the Expo Go ports to `ALLOWED_ORIGINS`:
+
+```env
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:19006,exp://192.168.x.x:19000,exp://192.168.x.x:8081,http://192.168.x.x:19006,http://192.168.x.x:8081
+```
+
+Expo Go uses different ports depending on the SDK version:
+- `exp://192.168.x.x:19000` — Expo Go (older SDK)
+- `exp://192.168.x.x:8081` — Expo Go (newer Metro bundler)
+- `http://192.168.x.x:19006` — Web browser preview
+
+Add all of them to be safe. The backend's CORS middleware blocks requests from any origin not in this list.
+
+---
+
+### Step 4 — Ensure Both Devices Are on the Same Wi-Fi
+
+Your laptop and phone must be connected to the **same Wi-Fi network**. Mobile data or a different network will not work for local development.
+
+```
+Router (192.168.1.1)
+    ├── Laptop  → 192.168.1.10  (backend running on :5000)
+    └── Phone   → 192.168.1.25  (Expo Go app)
+```
+
+---
+
+### Step 5 — Restart Everything
+
+After updating both `.env` files, restart both the backend and Expo:
+
+```bash
+# Terminal 1 — restart backend
+cd homebite-backend
+npm run dev
+
+# Terminal 2 — restart Expo (clear cache to pick up new .env)
+cd homebite-app
+npx expo start --clear
+```
+
+The `--clear` flag forces Metro to reload the `.env` values. Without it, the old `EXPO_PUBLIC_API_URL` may still be cached.
+
+---
+
+### Quick Checklist
+
+| Check | What to verify |
+|---|---|
+| Same Wi-Fi | Laptop and phone on the same network |
+| Correct IP in `homebite-app/.env` | `EXPO_PUBLIC_API_URL=http://192.168.x.x:5000/api/v1` |
+| IP added to `ALLOWED_ORIGINS` | All `exp://` and `http://` variants of your IP in backend `.env` |
+| Backend is running | `npm run dev` output shows `Server running on port 5000` |
+| Expo restarted with `--clear` | `npx expo start --clear` after any `.env` change |
+| Firewall not blocking port 5000 | Temporarily disable firewall or add an inbound rule for port 5000 |
+
+---
+
+### Verifying the Backend Is Reachable from Your Phone
+
+Open the browser on your phone and visit:
+
+```
+http://192.168.x.x:5000/health
+```
+
+If the backend is reachable, you will see:
+
+```json
+{ "status": "ok", "timestamp": "2026-03-28T..." }
+```
+
+If this page does not load, the issue is network-level (firewall, wrong IP, different Wi-Fi) — not the app code.
 
 ---
 
