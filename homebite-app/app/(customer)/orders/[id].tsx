@@ -7,6 +7,7 @@ import Toast from 'react-native-toast-message';
 import { Badge } from '../../../src/components/common/Badge';
 import { Button } from '../../../src/components/common/Button';
 import { Loader } from '../../../src/components/common/Loader';
+import { OrderTracker } from '../../../src/components/order/OrderTracker';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../src/constants/orderStatus';
 import { orderApi } from '../../../src/api/order.api';
 import { formatCurrency, formatDate } from '../../../src/utils/formatCurrency';
@@ -67,6 +68,12 @@ export default function OrderDetailScreen() {
           </View>
           <Text style={styles.date}>{formatDate(order.createdAt)}</Text>
           <Text style={styles.vendor}>{order.vendor?.businessName}</Text>
+        </View>
+
+        {/* Order tracking stepper */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Order Status</Text>
+          <OrderTracker status={order.status} />
         </View>
 
         <View style={styles.card}>

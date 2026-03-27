@@ -8,6 +8,8 @@ export const orderApi = {
   // Vendor
   getVendorOrders: (params?: Record<string, string>) =>
     api.get('/orders/vendor/incoming', { params }),
+  accept: (id: string) => api.patch(`/orders/${id}/accept`),
+  reject: (id: string, reason?: string) => api.patch(`/orders/${id}/reject`, { reason }),
   updateStatus: (id: string, status: string) => api.patch(`/orders/${id}/status`, { status }),
   // Admin
   getAll: (params?: Record<string, string>) => api.get('/admin/orders', { params }),

@@ -12,7 +12,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#FF6B35"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.homebite.app"
@@ -33,14 +35,15 @@
       "expo-secure-store",
       [
         "expo-image-picker",
-        { "photosPermission": "HomeBite needs access to upload food photos." }
-      ]
+        {
+          "photosPermission": "HomeBite needs access to upload food photos."
+        }
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {
-      "apiUrl": "http://10.129.38.11:5000/api/v1"
-    }
+    "extra": {}
   }
 }
