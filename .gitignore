@@ -1,0 +1,120 @@
+# =========================
+
+# General
+
+# =========================
+
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+
+# =========================
+
+# Environment variables (VERY IMPORTANT)
+
+# =========================
+
+.env
+.env.*
+!.env.example
+
+# =========================
+
+# Node.js
+
+# =========================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+
+# Backend build files
+
+# =========================
+
+dist/
+build/
+coverage/
+
+# =========================
+
+# React Native / Expo
+
+# =========================
+
+.expo/
+.expo-shared/
+.expo-settings.json
+
+# Metro bundler cache
+
+.metro-cache/
+
+# React Native logs
+
+*.log
+
+# =========================
+
+# Android
+
+# =========================
+
+android/.gradle/
+android/build/
+android/app/build/
+
+# IMPORTANT: never push signing keys
+
+android/app/debug.keystore
+*.keystore
+*.jks
+
+# Gradle
+
+.gradle/
+local.properties
+
+# =========================
+
+# iOS (if you add later)
+
+# =========================
+
+ios/build/
+ios/Pods/
+*.xcworkspace
+*.xcuserdata
+
+# =========================
+
+# TypeScript
+
+# =========================
+
+*.tsbuildinfo
+
+# =========================
+
+# IDE / Editor files
+
+# =========================
+
+.vscode/
+.idea/
+*.iml
+
+# =========================
+
+# OS / Linux temp files
+
+# =========================
+
+*~
+.cache/

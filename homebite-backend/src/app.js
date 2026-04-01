@@ -37,8 +37,11 @@ app.use(rateLimit({
   message: { success: false, message: 'Too many requests, please try again later' },
 }));
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
+// Body parsing — capture raw body for Razorpay webhook signature verification
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(compression());
 
@@ -68,7 +71,7 @@ app.use(`${API_PREFIX}/reviews`, reviewRoutes);
 app.use(`${API_PREFIX}/admin`, adminRoutes);
 
 // 404
-app.use((req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
+app.use((_req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
 
 // Global error handler
 app.use(errorHandler);

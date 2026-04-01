@@ -1,11 +1,6 @@
-/**
- * Payment Service — Razorpay Integration Stub
- *
- * To go live: replace stub methods with actual Razorpay SDK calls.
- * All method signatures match what the controller expects — no other file needs to change.
- */
 const crypto = require('crypto');
 const prisma = require('../../config/database');
+const razorpay = require('../../config/razorpay');
 
 const createOrder = async (userId, orderId) => {
   const order = await prisma.order.findFirst({
@@ -25,21 +20,31 @@ const createOrder = async (userId, orderId) => {
     throw err;
   }
 
-  // STUB: In production, call razorpay.orders.create({ amount, currency, receipt })
-  const stubRazorpayOrderId = `rzp_order_stub_${Date.now()}`;
-  const amount = Number(order.total) * 100; // Razorpay expects paise
+  if (!razorpay) {
+    const err = new Error('Payment service not configured');
+    err.statusCode = 503;
+    throw err;
+  }
+
+  const amount = Math.round(Number(order.total) * 100); // Razorpay expects paise
+
+  const rzpOrder = await razorpay.orders.create({
+    amount,
+    currency: 'INR',
+    receipt: `rcpt_${orderId.slice(0, 35)}`, // max 40 chars
+  });
 
   await prisma.payment.update({
     where: { orderId },
-    data: { razorpayOrderId: stubRazorpayOrderId },
+    data: { razorpayOrderId: rzpOrder.id },
   });
 
   return {
-    razorpayOrderId: stubRazorpayOrderId,
-    amount,
-    currency: 'INR',
+    razorpayOrderId: rzpOrder.id,
+    amount: rzpOrder.amount,
+    currency: rzpOrder.currency,
     orderId,
-    keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_stub',
+    keyId: process.env.RAZORPAY_KEY_ID,
   };
 };
 
@@ -55,32 +60,96 @@ const verifyPayment = async (userId, { orderId, razorpayOrderId, razorpayPayment
     throw err;
   }
 
-  // STUB: In production, verify signature using:
-  // const body = razorpayOrderId + '|' + razorpayPaymentId;
-  // const expectedSignature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET).update(body).digest('hex');
-  // if (expectedSignature !== razorpaySignature) throw error;
+  if (order.payment?.status === 'SUCCESS') {
+    const err = new Error('Order is already paid');
+    err.statusCode = 400;
+    throw err;
+  }
 
-  // For stub, we accept any non-empty signature
-  const isValid = Boolean(razorpaySignature);
+  // Verify Razorpay payment signature
+  const body = `${razorpayOrderId}|${razorpayPaymentId}`;
+  const expectedSignature = crypto
+    .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .update(body)
+    .digest('hex');
 
-  const paymentStatus = isValid ? 'SUCCESS' : 'FAILED';
-  const orderStatus = isValid ? 'CONFIRMED' : 'PAYMENT_FAILED';
+  let isValid = false;
+  try {
+    isValid = crypto.timingSafeEqual(
+      Buffer.from(expectedSignature),
+      Buffer.from(razorpaySignature)
+    );
+  } catch {
+    isValid = false;
+  }
+
+  if (!isValid) {
+    const err = new Error('Invalid payment signature');
+    err.statusCode = 400;
+    throw err;
+  }
 
   await prisma.$transaction([
     prisma.payment.update({
       where: { orderId },
-      data: { razorpayOrderId, razorpayPaymentId, razorpaySignature, status: paymentStatus },
+      data: { razorpayOrderId, razorpayPaymentId, razorpaySignature, status: 'SUCCESS' },
     }),
-    prisma.order.update({ where: { id: orderId }, data: { status: orderStatus } }),
+    prisma.order.update({ where: { id: orderId }, data: { status: 'CONFIRMED' } }),
   ]);
 
-  return { success: isValid, paymentStatus, orderStatus };
+  return { success: true, paymentStatus: 'SUCCESS', orderStatus: 'CONFIRMED' };
 };
 
-const handleWebhook = async (body, signature) => {
-  // STUB: Verify Razorpay webhook signature and process events
-  // In production, use razorpay.webhooks.validateWebhookSignature()
-  console.log('[Razorpay Webhook Stub] Received event');
+const handleWebhook = async (rawBody, signature) => {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  if (webhookSecret) {
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(rawBody)
+      .digest('hex');
+
+    let isValid = false;
+    try {
+      isValid = crypto.timingSafeEqual(
+        Buffer.from(expectedSignature),
+        Buffer.from(signature || '')
+      );
+    } catch {
+      isValid = false;
+    }
+
+    if (!isValid) {
+      const err = new Error('Invalid webhook signature');
+      err.statusCode = 400;
+      throw err;
+    }
+  } else {
+    console.warn('[Razorpay] RAZORPAY_WEBHOOK_SECRET not set — skipping signature verification (test mode only)');
+  }
+
+  const event = JSON.parse(rawBody);
+
+  if (event.event === 'payment.captured') {
+    const payment = event.payload.payment.entity;
+    const dbPayment = await prisma.payment.findFirst({
+      where: { razorpayOrderId: payment.order_id },
+    });
+
+    if (dbPayment && dbPayment.status !== 'SUCCESS') {
+      await prisma.$transaction([
+        prisma.payment.update({
+          where: { id: dbPayment.id },
+          data: { razorpayPaymentId: payment.id, status: 'SUCCESS' },
+        }),
+        prisma.order.update({
+          where: { id: dbPayment.orderId },
+          data: { status: 'CONFIRMED' },
+        }),
+      ]);
+    }
+  }
+
   return { received: true };
 };
 

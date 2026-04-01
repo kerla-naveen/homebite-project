@@ -18,6 +18,7 @@
 - [API Endpoints Overview](#api-endpoints-overview)
 - [Database Schema Overview](#database-schema-overview)
 - [Order Flow](#order-flow)
+- [Running on a Physical Android Device (USB)](#running-on-a-physical-android-device-usb)
 - [Troubleshooting: Expo Go Not Connecting to Backend](#troubleshooting-expo-go-not-connecting-to-backend)
 - [Future Improvements](#future-improvements)
 - [Deployment Plan](#deployment-plan)
@@ -659,7 +660,196 @@ Customer submits review → POST /reviews
 
 ---
 
-## Troubleshooting: Expo Go Not Connecting to Backend
+## Running on a Physical Android Device (USB)
+
+This project uses `expo-dev-client`, which means it does **not** run inside the generic Expo Go app. Instead, it requires a **development build** — a custom APK compiled specifically for this project and installed directly on your phone.
+
+This section explains everything from scratch: what a development build is, what tools are involved, and how to get the app running on your phone over USB.
+
+---
+
+### Understanding the Pieces
+
+#### Expo Go vs. Development Build
+
+| | Expo Go | Development Build |
+|---|---|---|
+| What it is | A pre-built app by Expo that can run any standard Expo project | A custom APK you build yourself for your specific project |
+| When you need it | Simple projects with no custom native code | Projects using `expo-dev-client` or native modules |
+| How you run it | Scan QR code with the Expo Go app | Install the APK on your phone first, then connect via Metro |
+| This project | **Does not work** | **Required** |
+
+HomeBite uses `expo-dev-client` because it includes native modules (like `expo-secure-store` and `expo-image-picker`) that require custom native code compiled into the app. Expo Go cannot load these.
+
+#### What ADB Does
+
+ADB (Android Debug Bridge) is a command-line tool that lets your laptop communicate with your Android phone over USB. When you run `npm run android`, the build system:
+
+1. Compiles the Java/Kotlin + JavaScript code into an APK file
+2. Uses ADB to transfer the APK to your phone
+3. Uses ADB to launch the app
+
+ADB is bundled with the Android SDK, which is already installed at `~/Android/Sdk/platform-tools/adb` on this machine.
+
+#### What Metro Bundler Does
+
+Metro is the JavaScript bundler for React Native. After the APK is installed on your phone, the app does **not** contain your final JS code — it connects back to Metro (running on your laptop) and downloads the latest JS bundle at runtime. This is what enables fast reloads during development without rebuilding the APK each time.
+
+```
+Your Phone (APK installed)
+        │
+        │  connects to Metro over USB/Wi-Fi
+        ▼
+Your Laptop (Metro Bundler running on :8081)
+        │
+        │  serves the latest JS bundle
+        ▼
+App renders with your latest code
+```
+
+---
+
+### Prerequisites
+
+Before running for the first time, verify these are in place:
+
+**On your laptop:**
+- Android SDK installed at `~/Android/Sdk`
+- Java 17+ installed (`java -version`)
+- ADB available (`adb --version`)
+
+**On your phone:**
+- **USB Debugging** enabled: Settings → Developer Options → USB Debugging → ON
+- **Install via USB** enabled: Settings → Developer Options → Install via USB → ON
+
+> Developer Options is hidden by default. To unlock it: Settings → About Phone → tap "Build Number" 7 times rapidly.
+
+---
+
+### First-Time Setup: Build and Install
+
+This only needs to be done once (or after uninstalling the app).
+
+**Step 1 — Connect your phone via USB**
+
+Plug your phone into the laptop with a USB cable. The first time, your phone will show a dialog:
+> "Allow USB debugging from this computer?"
+
+Tap **Always Allow**, then **OK**. Verify the connection:
+
+```bash
+adb devices
+```
+
+You should see your device listed, not just the header:
+```
+List of devices attached
+228d62340421    device
+```
+
+If it says `unauthorized`, unlock your phone and tap Allow on the USB debugging prompt again.
+
+**Step 2 — Ensure the API URL is set to your machine's LAN IP**
+
+Your phone and laptop must share the same Wi-Fi network. The phone cannot reach `localhost` on your laptop — `localhost` inside the app refers to the phone itself.
+
+Find your laptop's IP:
+```bash
+ip route get 1 | awk '{print $7; exit}'
+```
+
+Update `homebite-app/.env`:
+```env
+EXPO_PUBLIC_API_URL=http://192.168.x.x:5000/api/v1
+```
+
+> Your IP changes every time you reconnect to Wi-Fi. If the app stops reaching the backend, re-run the command above and update this file.
+
+**Step 3 — Start the backend** (in a separate terminal)
+
+```bash
+cd homebite-backend
+npm run dev
+```
+
+Keep this running. The app needs the backend to be reachable at the IP you set above.
+
+**Step 4 — Build and install the APK**
+
+```bash
+cd homebite-app
+npm run android
+```
+
+What this does internally:
+1. Runs Gradle to compile the Android project (Java, Kotlin, and all native modules)
+2. Produces an APK at `android/app/build/outputs/apk/debug/app-debug.apk`
+3. Calls `adb install` to transfer and install the APK on your phone
+4. Launches Metro bundler on your laptop
+5. Opens the app on your phone, which connects to Metro and loads your JS
+
+The first build takes **3–7 minutes** because Gradle compiles everything from scratch. Subsequent builds are much faster due to caching.
+
+**Watch your phone during the install step.** A dialog may appear:
+> "Do you want to install this app?"
+
+Tap **Install**. If you miss it and the install fails, run the install manually with the already-built APK:
+
+```bash
+adb install -r ~/myProjects/home-made-foodies/homebite-app/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+---
+
+### Day-to-Day Development (After First Build)
+
+Once the APK is installed on your phone, you do **not** need to rebuild on every code change. JavaScript changes (screens, components, API calls, styles) are picked up instantly via Metro.
+
+Just run:
+
+```bash
+cd homebite-app
+npx expo start
+```
+
+Then press **`a`** in the terminal. This tells Metro to open the already-installed dev client app on your phone and connect it to the current Metro session.
+
+| Change type | What to do |
+|---|---|
+| JS/TSX file change | Press `r` to reload, or enable Fast Refresh (auto) |
+| New npm package (JS only) | Restart Metro (`npx expo start`) |
+| New native module (e.g. new expo plugin) | Must rebuild: `npm run android` |
+| `app.json` changes | Must rebuild: `npm run android` |
+| `.env` change | Restart Metro with `npx expo start --clear` |
+
+---
+
+### Common Errors and Fixes
+
+**`INSTALL_FAILED_USER_RESTRICTED`**
+
+The phone blocked the install. Enable **Install via USB** in Developer Options, then retry:
+```bash
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+**`No development build (com.homebite.app) installed`**
+
+The dev client APK is not on the phone. Run `npm run android` to build and install it.
+
+**`adb: device unauthorized`**
+
+Unlock your phone and look for the USB debugging permission dialog. Tap **Always Allow**.
+
+**`Connection refused` / app can't reach backend**
+
+Your IP changed, or the backend isn't running. Check:
+1. `ip route get 1 | awk '{print $7; exit}'` — get your current IP
+2. Update `homebite-app/.env` with the new IP
+3. Restart Metro: `npx expo start --clear`
+4. Make sure `npm run dev` is running in `homebite-backend/`
+
+---
 
 This is the most common issue when running HomeBite for the first time. Expo Go runs on your **physical mobile device**, which is a separate machine on the network — it cannot reach `localhost` on your laptop. You must use your laptop's local network IP address everywhere.
 

@@ -10,6 +10,8 @@ import { Loader } from '../../../src/components/common/Loader';
 import { OrderTracker } from '../../../src/components/order/OrderTracker';
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from '../../../src/constants/orderStatus';
 import { orderApi } from '../../../src/api/order.api';
+import { useRazorpay } from '../../../src/hooks/useRazorpay';
+import { RazorpayWebView } from '../../../src/components/payment/RazorpayWebView';
 import { formatCurrency, formatDate } from '../../../src/utils/formatCurrency';
 
 export default function OrderDetailScreen() {
@@ -17,6 +19,8 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const { paymentOptions, openPayment, resolvePayment } = useRazorpay();
 
   useEffect(() => {
     orderApi.getById(id).then((res) => setOrder(res.data.data)).finally(() => setLoading(false));
@@ -46,9 +50,32 @@ export default function OrderDetailScreen() {
   if (loading) return <Loader />;
   if (!order) return null;
 
+  const handlePay = async () => {
+    setPaying(true);
+    try {
+      const result = await openPayment(order.id);
+      if (result === 'success') {
+        Toast.show({ type: 'success', text1: 'Payment successful!', text2: 'Your order is confirmed.' });
+      } else if (result === 'cancelled') {
+        Toast.show({ type: 'info', text1: 'Payment cancelled' });
+      } else {
+        Toast.show({ type: 'error', text1: 'Payment failed', text2: 'Please try again.' });
+      }
+      // Refresh order status
+      const res = await orderApi.getById(order.id);
+      setOrder(res.data.data);
+    } catch (err: any) {
+      Toast.show({ type: 'error', text1: err.response?.data?.message || 'Something went wrong' });
+    } finally {
+      setPaying(false);
+    }
+  };
+
   const statusLabel = ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] || order.status;
   const statusColor = ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS] || '#6B7280';
   const canCancel = ['PENDING_PAYMENT', 'CONFIRMED'].includes(order.status);
+  const canPay = order.status === 'PENDING_PAYMENT' && order.payment?.status !== 'SUCCESS';
+  const canRetry = order.status === 'PAYMENT_FAILED';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -118,10 +145,27 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {(canPay || canRetry) && (
+          <Button
+            title={canRetry ? 'Retry Payment' : 'Pay Now'}
+            onPress={handlePay}
+            loading={paying}
+          />
+        )}
+
         {canCancel && (
           <Button title="Cancel Order" onPress={handleCancel} loading={cancelling} variant="danger" />
         )}
       </ScrollView>
+
+      {paymentOptions && (
+        <RazorpayWebView
+          options={paymentOptions}
+          onResult={(result) => {
+            resolvePayment(result);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }

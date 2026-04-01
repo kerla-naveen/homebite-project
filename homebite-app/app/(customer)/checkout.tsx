@@ -8,15 +8,19 @@ import { Button } from '../../src/components/common/Button';
 import { Loader } from '../../src/components/common/Loader';
 import { orderApi } from '../../src/api/order.api';
 import { useCartStore } from '../../src/store/cartStore';
+import { useRazorpay } from '../../src/hooks/useRazorpay';
+import { RazorpayWebView } from '../../src/components/payment/RazorpayWebView';
 import { formatCurrency } from '../../src/utils/formatCurrency';
 import api from '../../src/api/axiosInstance';
 
 export default function CheckoutScreen() {
   const { items, subtotal, clearLocalCart } = useCartStore();
+  const { paymentOptions, openPayment, resolvePayment } = useRazorpay();
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [notes, setNotes] = useState('');
 
   const DELIVERY_FEE = 40;
@@ -37,20 +41,34 @@ export default function CheckoutScreen() {
       return;
     }
 
+    // Step 1: place the order
     setPlacing(true);
+    let orderId: string;
     try {
       const res = await orderApi.place(selectedAddressId, notes || undefined);
-      const orderId = res.data.data.id;
+      orderId = res.data.data.id;
       clearLocalCart();
-
-      // In production: launch Razorpay payment here
-      // For now, redirect to order detail (payment stub)
-      Toast.show({ type: 'success', text1: 'Order placed!', text2: 'Proceeding to payment...' });
-      router.replace(`/(customer)/orders/${orderId}`);
     } catch (err: any) {
       Toast.show({ type: 'error', text1: err.response?.data?.message || 'Failed to place order' });
-    } finally {
       setPlacing(false);
+      return;
+    }
+    setPlacing(false);
+
+    // Step 2: launch Razorpay checkout
+    setPaying(true);
+    try {
+      const result = await openPayment(orderId);
+      if (result === 'success') {
+        Toast.show({ type: 'success', text1: 'Payment successful!', text2: 'Your order is confirmed.' });
+      } else if (result === 'cancelled') {
+        Toast.show({ type: 'info', text1: 'Payment cancelled', text2: 'Pay from Order Details to confirm your order.' });
+      } else {
+        Toast.show({ type: 'error', text1: 'Payment failed', text2: 'You can retry from Order Details.' });
+      }
+    } finally {
+      setPaying(false);
+      router.replace(`/(customer)/orders/${orderId}`);
     }
   };
 
@@ -119,19 +137,28 @@ export default function CheckoutScreen() {
         </View>
 
         <View style={styles.paymentNote}>
-          <Ionicons name="card-outline" size={20} color="#FF6B35" />
-          <Text style={styles.paymentText}>Payment via Razorpay (COD available soon)</Text>
+          <Ionicons name="lock-closed-outline" size={20} color="#FF6B35" />
+          <Text style={styles.paymentText}>Secured payment via Razorpay · UPI, Cards, Net Banking & more</Text>
         </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <Button
-          title={`Place Order · ${formatCurrency(total)}`}
+          title={paying ? 'Processing payment…' : `Place Order · ${formatCurrency(total)}`}
           onPress={handlePlaceOrder}
-          loading={placing}
-          disabled={!selectedAddressId}
+          loading={placing || paying}
+          disabled={!selectedAddressId || placing || paying}
         />
       </View>
+
+      {paymentOptions && (
+        <RazorpayWebView
+          options={paymentOptions}
+          onResult={(result) => {
+            resolvePayment(result);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
