@@ -24,7 +24,10 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FF6B35"
       },
-      "package": "com.homebite.app"
+      "package": "com.homebite.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -44,6 +47,14 @@
     "experiments": {
       "typedRoutes": true
     },
-    "extra": {}
+    "extra": {
+      "apiUrl": "https://homebite-project.onrender.com/api/v1",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "3317da23-c7dd-42b8-8537-f29b23c39b99"
+      }
+    }
   }
 }
