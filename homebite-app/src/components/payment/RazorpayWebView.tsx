@@ -112,11 +112,18 @@ export function RazorpayWebView({ options, onResult }: Props) {
           </View>
         ) : (
           <WebView
-            source={{ html: buildCheckoutHtml(options) }}
+            // baseUrl gives the inline HTML a real origin so checkout.razorpay.com/v1/checkout.js
+            // is allowed to load (data:// origin blocks external scripts on Android).
+            source={{ html: buildCheckoutHtml(options), baseUrl: 'https://checkout.razorpay.com' }}
             onMessage={handleMessage}
             style={{ flex: 1 }}
             javaScriptEnabled
             domStorageEnabled
+            // Allow navigation to bank/UPI redirect URLs during payment
+            originWhitelist={['*']}
+            // Razorpay opens bank auth pages in a new window; render them in-place
+            setSupportMultipleWindows={false}
+            onError={() => onResult('failed')}
           />
         )}
       </View>

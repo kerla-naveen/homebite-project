@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
+import { router } from 'expo-router';
 import { useAuthStore } from '../../src/store/authStore';
 import { authApi } from '../../src/api/auth.api';
 import { removeRefreshToken } from '../../src/utils/storage';
@@ -28,7 +29,7 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
-    { icon: 'location-outline', label: 'Saved Addresses', onPress: () => Toast.show({ type: 'info', text1: 'Coming soon' }) },
+    { icon: 'location-outline', label: 'Saved Addresses', onPress: () => router.push('/(customer)/addresses') },
     { icon: 'lock-closed-outline', label: 'Change Password', onPress: () => Toast.show({ type: 'info', text1: 'Coming soon' }) },
     { icon: 'help-circle-outline', label: 'Help & Support', onPress: () => {} },
     { icon: 'information-circle-outline', label: 'About HomeBite', onPress: () => {} },
