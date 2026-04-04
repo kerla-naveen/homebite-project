@@ -122,6 +122,10 @@ HomeBite follows a **client-server architecture** with three main layers:
   </tr>
   <tr>
     <td align="center">
+      <img src="docs/images/payment.jpeg" width="260" alt="order  payments" /><br/>
+      <sub>Customer — Order Payments</sub>
+    </td>
+    <td align="center">
       <img src="docs/images/WhatsApp%20Image%202026-04-03%20at%2011.58.48%20PM.jpeg" width="260" alt="Admin Users" /><br/>
       <sub>Admin — User Management</sub>
     </td>
