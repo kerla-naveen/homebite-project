@@ -10,6 +10,8 @@
 - [Key Features](#key-features)
 - [System Architecture](#system-architecture)
 - [Architecture Diagram](#architecture-diagram)
+- [App Screenshots](#app-screenshots)
+- [App Screenshots](#app-screenshots)
 - [Project Folder Structure](#project-folder-structure)
 - [Prerequisites](#prerequisites)
 - [Backend Setup](#backend-setup)
