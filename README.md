@@ -11,7 +11,6 @@
 - [System Architecture](#system-architecture)
 - [Architecture Diagram](#architecture-diagram)
 - [App Screenshots](#app-screenshots)
-- [App Screenshots](#app-screenshots)
 - [Project Folder Structure](#project-folder-structure)
 - [Prerequisites](#prerequisites)
 - [Backend Setup](#backend-setup)
@@ -98,54 +97,41 @@ HomeBite follows a **client-server architecture** with three main layers:
 
 ## Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                  HomeBite Mobile App                    │
-│              React Native + Expo Router                 │
-│                                                         │
-│  ┌───────────┐  ┌───────────┐  ┌───────────────────┐   │
-│  │ (customer)│  │ (vendor)  │  │     (admin)       │   │
-│  │  Screens  │  │  Screens  │  │     Screens       │   │
-│  └───────────┘  └───────────┘  └───────────────────┘   │
-│         │              │                  │             │
-│  ┌──────▼──────────────▼──────────────────▼──────┐      │
-│  │       Zustand Store  +  Axios Client           │      │
-│  └──────────────────────┬─────────────────────────┘      │
-└─────────────────────────┼───────────────────────────────┘
-                          │ HTTPS / REST API
-                          │
-┌─────────────────────────▼───────────────────────────────┐
-│               HomeBite Backend API                      │
-│              Node.js + Express.js                       │
-│                                                         │
-│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────────┐  │
-│  │  Auth   │ │ Vendors │ │  Orders  │ │    Admin    │  │
-│  │ Module  │ │ Module  │ │  Module  │ │   Module    │  │
-│  └─────────┘ └─────────┘ └──────────┘ └─────────────┘  │
-│  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────────┐  │
-│  │  Cart   │ │  Food   │ │ Payments │ │  Delivery   │  │
-│  │ Module  │ │  Items  │ │ Module   │ │   Module    │  │
-│  └─────────┘ └─────────┘ └──────────┘ └─────────────┘  │
-│                                                         │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │       Middleware: JWT Auth, RBAC, Validation,   │   │
-│  │       Rate Limiting, Helmet, CORS, Morgan       │   │
-│  └─────────────────────────────────────────────────┘   │
-└────────────┬───────────────────┬────────────────────────┘
-             │                   │
-     ┌───────▼───────┐   ┌───────▼──────────────────┐
-     │  MySQL DB     │   │   External Services       │
-     │  Prisma ORM   │   │                          │
-     │               │   │  ┌───────────────────┐   │
-     │  Users        │   │  │  Razorpay (Pay)   │   │
-     │  Vendors      │   │  └───────────────────┘   │
-     │  FoodItems    │   │  ┌───────────────────┐   │
-     │  Orders       │   │  │ Shiprocket (Ship) │   │
-     │  Payments     │   │  └───────────────────┘   │
-     │  Deliveries   │   └──────────────────────────┘
-     │  Reviews      │
-     └───────────────┘
-```
+<p align="center">
+  <img src="docs/images/system_architecure.jpeg" width="65%" alt="HomeBite System Architecture Diagram" />
+</p>
+
+---
+
+## App Screenshots
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/images/WhatsApp%20Image%202026-04-03%20at%2011.54.50%20PM.jpeg" width="260" alt="Login Screen" /><br/>
+      <sub>Login Screen</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/WhatsApp%20Image%202026-04-03%20at%2011.54.52%20PM.jpeg" width="260" alt="Customer Home" /><br/>
+      <sub>Customer Home — Nearby Kitchens</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/WhatsApp%20Image%202026-04-03%20at%2011.54.48%20PM.jpeg" width="260" alt="Checkout" /><br/>
+      <sub>Checkout &amp; Order Summary</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/images/WhatsApp%20Image%202026-04-03%20at%2011.58.48%20PM.jpeg" width="260" alt="Admin Users" /><br/>
+      <sub>Admin — User Management</sub>
+    </td>
+    <td align="center">
+      <img src="docs/images/WhatsApp%20Image%202026-04-04%20at%2010.42.33%20AM.jpeg" width="260" alt="Vendor Approval" /><br/>
+      <sub>Admin — Vendor Approval</sub>
+    </td>
+    <td></td>
+  </tr>
+</table>
 
 ---
 
