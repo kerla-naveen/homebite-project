@@ -5,3 +5,5 @@ uploads/*
 !uploads/.gitkeep
 prisma/migrations/
 
+homebite-backend@1.0.0
+node
